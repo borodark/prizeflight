@@ -10,7 +10,9 @@ defmodule Prizeflight.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      dialyzer: [plt_add_deps: :transitive, plt_add_apps: [:mix, :iex]]
+      dialyzer: [
+        plt_add_deps: :app_tree # or :project
+      ]
     ]
   end
 
@@ -41,8 +43,8 @@ defmodule Prizeflight.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:ch, "~> 0.7"},
-      {:credo, "~> 1", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1", only: :dev, runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: :dev, runtime: false}
     ]
   end
 
