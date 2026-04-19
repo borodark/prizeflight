@@ -4,12 +4,21 @@
 # This configuration file is loaded before any dependency and
 # is restricted to this project.
 
-# General application configuration
 import Config
 
 config :prizeflight,
-  ecto_repos: [Prizeflight.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
+
+config :prizeflight, Prizeflight.Clickhouse,
+  hostname: System.get_env("CH_HOST", "localhost"),
+  port: String.to_integer(System.get_env("CH_PORT", "8123")),
+  database: System.get_env("CH_DB", "prizeflight"),
+  username: System.get_env("CH_USER", "prizeflight"),
+  password: System.get_env("CH_PASSWORD", "prizeflight")
+
+config :prizeflight, Prizeflight.Ingest.BufferSupervisor,
+  pool_size: String.to_integer(System.get_env("BUFFER_POOL_SIZE", "16")),
+  flush_ms: String.to_integer(System.get_env("BUFFER_FLUSH_MS", "100"))
 
 # Configures the endpoint
 config :prizeflight, PrizeflightWeb.Endpoint,

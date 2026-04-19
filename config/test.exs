@@ -1,27 +1,20 @@
 import Config
 
-# Configure your database
-#
-# The MIX_TEST_PARTITION environment variable can be used
-# to provide built-in test partitioning in CI environment.
-# Run `mix help test` for more information.
-config :prizeflight, Prizeflight.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "prizeflight_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+# Point tests at a dedicated CH database so the prod schema isn't touched.
+config :prizeflight, Prizeflight.Clickhouse,
+  database: "prizeflight_test",
+  pool_size: 2
 
-# We don't run a server during test. If one is required,
-# you can enable the server option below.
 config :prizeflight, PrizeflightWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "/erXYZGx1+Q9pFfsuQkBGyQ1NL3raZlu1mWjbqgKt5iKgwEm0V9vK6xh1IRqUXm3",
   server: false
 
-# Print only warnings and errors during test
 config :logger, level: :warning
 
-# Initialize plugs at runtime for faster test compilation
 config :phoenix, :plug_init_mode, :runtime
+
+# Tests don't need a live ClickHouse — the controller test stops at the
+# HTTP layer (push lands in ETS, flushers log a warning if CH isn't up).
+config :prizeflight, :start_clickhouse, false
+config :prizeflight, :start_buffer_pool, false
