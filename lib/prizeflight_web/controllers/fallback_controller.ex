@@ -1,4 +1,12 @@
 defmodule PrizeflightWeb.FallbackController do
+  @moduledoc """
+  Translates action-result error tuples into JSON HTTP responses.
+
+  Plugged in via `action_fallback/1` — controllers return
+  `{:error, reason}` and this module maps each reason to the right
+  status code and body shape.
+  """
+
   use PrizeflightWeb, :controller
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do

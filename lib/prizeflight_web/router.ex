@@ -1,4 +1,9 @@
 defmodule PrizeflightWeb.Router do
+  @moduledoc """
+  HTTP routes. One public API pipeline; `POST /api/price_updates`
+  is the sole ingest endpoint.
+  """
+
   use PrizeflightWeb, :router
 
   pipeline :api do

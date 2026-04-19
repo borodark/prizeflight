@@ -1,4 +1,11 @@
 defmodule PrizeflightWeb.Telemetry do
+  @moduledoc """
+  Telemetry supervisor — defines the metric set exposed via
+  `Telemetry.Metrics` and runs a periodic poller for VM gauges.
+  Attach a reporter (e.g. `Telemetry.Metrics.ConsoleReporter`) as a
+  child to emit these metrics.
+  """
+
   use Supervisor
   import Telemetry.Metrics
 

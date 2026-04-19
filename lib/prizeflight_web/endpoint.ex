@@ -1,4 +1,8 @@
 defmodule PrizeflightWeb.Endpoint do
+  @moduledoc """
+  Phoenix endpoint — HTTP pipeline and plug stack.
+  """
+
   use Phoenix.Endpoint, otp_app: :prizeflight
 
   # The session will be stored in the cookie and signed,
