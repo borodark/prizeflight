@@ -44,8 +44,7 @@ and the benchmark caught a 200x regression caused by a seemingly free
 constraint. The writeup in **[docs/INGEST_PIPELINE.md](docs/INGEST_PIPELINE.md)**
 walks through the investigation — why `ON CONFLICT DO NOTHING` costs
 200x on a columnar engine, and how moving idempotency from the write
-path to the rollup recovered the throughput. Read that before
-reviewing the code.
+path to the rollup recovered the throughput.
 
 ## Requirements
 
