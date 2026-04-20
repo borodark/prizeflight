@@ -21,16 +21,30 @@ defmodule Prizeflight.Prices do
     Map.put(changes, :inserted_at, DateTime.utc_now() |> DateTime.truncate(:second))
   end
 
+  # Postgres wire-protocol caps a single prepared statement at 65 535
+  # bound parameters. `price_events` has 10 columns, so any single
+  # `insert_all` must stay under 6 553 rows. We pick 5 000 for headroom.
+  @max_rows_per_insert 5_000
+
   @doc """
   Batch insert rows into `price_events`. No `on_conflict` — the table
-  is append-only. Returns `{:ok, count}` or `{:error, term}`.
+  is append-only. Callers can pass any size; this function chunks
+  internally to stay under the Postgres parameter limit. Returns
+  `{:ok, total_inserted}` or `{:error, term}`.
   """
   @spec insert_many([map()]) :: {:ok, non_neg_integer()} | {:error, term()}
   def insert_many([]), do: {:ok, 0}
 
   def insert_many(rows) when is_list(rows) do
-    {n, _} = Repo.insert_all(PriceUpdate, rows)
-    {:ok, n}
+    total =
+      rows
+      |> Enum.chunk_every(@max_rows_per_insert)
+      |> Enum.reduce(0, fn chunk, acc ->
+        {n, _} = Repo.insert_all(PriceUpdate, chunk)
+        acc + n
+      end)
+
+    {:ok, total}
   rescue
     e -> {:error, e}
   end

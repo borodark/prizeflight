@@ -1,9 +1,86 @@
 # Benchmark Results
 
-Snapshot of the current ClickHouse-backed pipeline. See
+Two snapshots — the ClickHouse-backed pipeline from `main`, and the
+Postgres + Cube.js branch (`postgres-cube-inline`). See
 [INGEST_PIPELINE.md](INGEST_PIPELINE.md) for the architectural
 backstory (Postgres → DuckDB → ClickHouse pivots and the 200x
 `ON CONFLICT` investigation).
+
+## Branch: postgres-cube-inline (2026-04-20)
+
+### Environment
+
+| | |
+|---|---|
+| Elixir / OTP | 1.18.3 / 27 |
+| Schedulers | 88 |
+| Postgres | 18.1 (nerdctl container, localhost:17432) |
+| Repo pool | 50 connections |
+| Batch size | 20 000 per ETS drain; `Prices.insert_many` chunks to 5 000 rows (Postgres 65 535 bound-param cap) |
+
+### Results (200 000 events)
+
+| Scenario | Throughput | Wall time | Notes |
+|---|---:|---:|---|
+| Writer direct (sequential `insert_many`) | **11.4k ev/s** | 17.48 s | Single caller, no contention. OLTP baseline — Postgres handles each batch through the prepared-statement path. |
+| Writer parallel (88 concurrent `insert_many`) | **75.3k ev/s** | 2.65 s | Pool saturates; 6.6x sequential. Headroom to raise pool_size. |
+| Ingest e2e (`push` → ETS shard → flusher → Postgres) | **48.9k ev/s** | 4.09 s | The full internal path. The ~35% gap vs. parallel-writer peak is the flusher's timer-driven drain + batch assembly. |
+| HTTP e2e (POST /api/price_updates, 88-way keep-alive) | **3.9k ev/s** | 51.07 s | Bounded by per-request latency (p50 24 ms, p95 28 ms), not the writer. All 200 000 responses were 202 Accepted. |
+
+HTTP latency (200 000 requests, 88-way keep-alive):
+
+| Metric | μs | ms |
+|---|---:|---:|
+| mean | 22 099 | 22.1 |
+| p50 | 23 840 | 23.8 |
+| p95 | 27 963 | 28.0 |
+| p99 | 31 193 | 31.2 |
+| max | 253 280 | 253.3 |
+
+### Branch vs. main comparison
+
+| Stage | ClickHouse (main) | Postgres + Cube (branch) | Ratio |
+|---|---:|---:|---:|
+| Writer direct | 91.5k ev/s | 11.4k ev/s | 0.13x |
+| Writer parallel | 328.7k ev/s | 75.3k ev/s | 0.23x |
+| Ingest e2e | 206.6k ev/s | 48.9k ev/s | 0.24x |
+| HTTP keep-alive | 3.5k ev/s | 3.9k ev/s | 1.10x |
+
+Expected shape: ClickHouse wins big on the writer side (columnar bulk
+inserts vs. Postgres OLTP prepared statements). HTTP is a ~wash
+because both paths are gated by the Phoenix request latency, not the
+writer. The Postgres branch's win at the HTTP tier is within noise —
+the writer isn't on the request path either way (flusher drains
+off-cycle).
+
+The Postgres branch still comfortably absorbs >40k events per
+second end-to-end, which is ample for most ingest workloads short
+of the high-frequency price-feed scale. The trade is write
+throughput for the Cube.js semantic layer, the inline cube model
+via `power_of_3`, and the operational simplicity of Postgres.
+
+### Reproduce (Postgres branch)
+
+```sh
+# Start the Postgres + Cube stack
+nerdctl compose up -d
+
+# Migrate
+mix ecto.setup
+
+# Full run (all four scenarios)
+PORT=4003 PHX_SERVER=true BENCH_EVENTS=200000 BENCH_BATCH=20000 \
+  mix run bench/run.exs
+```
+
+Tunables: `BENCH_EVENTS` (default 1 000 000), `BENCH_BATCH` (default
+50 000 — clamped internally by `Prices.insert_many` to 5 000-row
+Postgres chunks), `BENCH_CONCURRENCY` (default
+`System.schedulers_online()`).
+
+---
+
+## Main: ClickHouse (historical)
 
 ## Environment
 

@@ -23,7 +23,7 @@ defmodule Bench do
                  )
                )
 
-  alias Prizeflight.{Clickhouse, Ingest, Prices}
+  alias Prizeflight.{Ingest, Prices, Repo}
 
   def run do
     Logger.configure(level: :warning)
@@ -228,8 +228,8 @@ defmodule Bench do
   # ---------- Data + DB helpers ----------
 
   defp truncate! do
-    :ok = Clickhouse.exec("TRUNCATE TABLE price_events")
-    :ok = Clickhouse.exec("TRUNCATE TABLE route_prices")
+    Repo.query!("TRUNCATE TABLE price_events")
+    :ok
   end
 
   defp build_rows(n) do
@@ -291,20 +291,19 @@ defmodule Bench do
   end
 
   defp events_in_db do
-    {:ok, [[n]]} =
-      Clickhouse.fetch_all(
-        "SELECT CAST(coalesce(sum(sample_count), 0) AS Int64) FROM (" <>
-          "SELECT sum(sample_count) AS sample_count FROM route_prices " <>
-          "GROUP BY route_id, departure_date)"
-      )
+    # Count distinct events — mirrors the cube's count_distinct(event_id)
+    # measure so duplicate retries don't inflate the total.
+    %{rows: [[n]]} =
+      Repo.query!("SELECT count(DISTINCT event_id)::bigint FROM price_events")
 
     n
   end
 
   defp print_count do
-    {:ok, [[keys]]} =
-      Clickhouse.fetch_all(
-        "SELECT count() FROM (SELECT 1 FROM route_prices GROUP BY route_id, departure_date)"
+    %{rows: [[keys]]} =
+      Repo.query!(
+        "SELECT count(*)::bigint FROM (" <>
+          "SELECT 1 FROM price_events GROUP BY route_id, departure_date) sub"
       )
 
     IO.puts("  events in DB: #{events_in_db()} across #{keys} (route, date) keys")
