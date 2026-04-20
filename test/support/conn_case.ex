@@ -1,7 +1,9 @@
 defmodule PrizeflightWeb.ConnCase do
   @moduledoc """
-  Conn-based test case. No DB sandbox — DuckDB tests start their own
-  isolated DB file via `Prizeflight.TestDuckDB`.
+  Conn-based test case. Starts `Prizeflight.Repo` once for the suite and
+  checks out a Sandbox connection per test so writes don't leak between
+  tests. The flusher pool is disabled in `config/test.exs` — the
+  controller tests stop at the HTTP / ETS boundary.
   """
 
   use ExUnit.CaseTemplate
@@ -18,7 +20,9 @@ defmodule PrizeflightWeb.ConnCase do
     end
   end
 
-  setup _tags do
+  setup tags do
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Prizeflight.Repo, shared: not tags[:async])
+    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

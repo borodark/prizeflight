@@ -7,14 +7,16 @@
 import Config
 
 config :prizeflight,
+  ecto_repos: [Prizeflight.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true]
 
-config :prizeflight, Prizeflight.Clickhouse,
-  hostname: System.get_env("CH_HOST", "localhost"),
-  port: String.to_integer(System.get_env("CH_PORT", "8123")),
-  database: System.get_env("CH_DB", "prizeflight"),
-  username: System.get_env("CH_USER", "prizeflight"),
-  password: System.get_env("CH_PASSWORD", "prizeflight")
+config :prizeflight, Prizeflight.Repo,
+  hostname: System.get_env("PG_HOST", "localhost"),
+  port: String.to_integer(System.get_env("PG_PORT", "5432")),
+  database: System.get_env("PG_DB", "prizeflight_dev"),
+  username: System.get_env("PG_USER", "postgres"),
+  password: System.get_env("PG_PASSWORD", "postgres"),
+  pool_size: String.to_integer(System.get_env("PG_POOL_SIZE", "50"))
 
 config :prizeflight, Prizeflight.Ingest.BufferSupervisor,
   pool_size: String.to_integer(System.get_env("BUFFER_POOL_SIZE", "16")),

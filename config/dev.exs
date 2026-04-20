@@ -1,5 +1,16 @@
 import Config
 
+# Configure your database
+#
+# The `pot_examples`-style Postgres container used by
+# `learn_erl/power-of-three-examples` maps 5432 → 17432 on the host. If
+# you run your own Postgres on 5432, set `PG_PORT=5432` to override.
+config :prizeflight, Prizeflight.Repo,
+  port: String.to_integer(System.get_env("PG_PORT") || "17432"),
+  stacktrace: true,
+  show_sensitive_data_on_connection_error: true,
+  pool_size: 10
+
 # For development, we disable any cache and enable
 # debugging and code reloading.
 #

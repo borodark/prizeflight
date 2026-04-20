@@ -36,13 +36,16 @@ defmodule Prizeflight.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.7.21"},
+      {:phoenix_ecto, "~> 4.5"},
       {:ecto, "~> 3.12"},
+      {:ecto_sql, "~> 3.12"},
+      {:postgrex, "~> 0.19"},
+      {:power_of_3, path: "../learn_erl/power-of-three"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:ch, "~> 0.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: :dev, runtime: false}
     ]
@@ -50,8 +53,10 @@ defmodule Prizeflight.MixProject do
 
   defp aliases do
     [
-      setup: ["deps.get"],
-      test: ["test"]
+      setup: ["deps.get", "ecto.setup"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"]
     ]
   end
 end

@@ -2,8 +2,8 @@ defmodule PrizeflightWeb.PriceUpdateControllerTest do
   use PrizeflightWeb.ConnCase, async: false
 
   # The controller only delegates validation + push. End-to-end writes
-  # are covered by `bench/run.exs` against a real ClickHouse; here we
-  # just assert the HTTP contract.
+  # are covered by `bench/run.exs` against a real Postgres + Cube stack;
+  # here we just assert the HTTP contract.
 
   setup do
     stop_existing(Prizeflight.Ingest.BufferSupervisor)

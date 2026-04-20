@@ -6,8 +6,7 @@ defmodule Prizeflight.Application do
   @impl true
   def start(_type, _args) do
     children =
-      [PrizeflightWeb.Telemetry] ++
-        maybe(:start_clickhouse, Prizeflight.Clickhouse) ++
+      [PrizeflightWeb.Telemetry, Prizeflight.Repo] ++
         [
           {DNSCluster, query: Application.get_env(:prizeflight, :dns_cluster_query) || :ignore},
           {Phoenix.PubSub, name: Prizeflight.PubSub}

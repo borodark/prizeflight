@@ -25,3 +25,8 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 prizeflight-*.tar
 
+# Cube.js model YAMLs are generated at compile time from the Ecto
+# schema by the `power_of_3` macro. See `lib/prizeflight/prices/
+# price_update.ex`. Cube.js reads them via the compose bind-mount.
+/model/cubes/
+

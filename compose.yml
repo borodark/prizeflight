@@ -1,0 +1,92 @@
+# nerdctl / docker / podman compose file for the Postgres + Cube.js
+# + Cubestore stack. Modeled after
+# ~/projects/learn_erl/power-of-three-examples/_compose.yml — minus
+# the cubesqld sidecar, which isn't needed here (reads are handled by
+# the cube_api HTTP/SQL ports directly).
+#
+# Bring up:   nerdctl compose up -d
+# Tear down:  nerdctl compose down
+#
+# Host ports: 17432 (Postgres), 4008 (Cube HTTP), 15432 (Cube PG wire),
+#             4445 (Cube SQL), 3030 (Cubestore pg).
+
+services:
+  postgresql:
+    container_name: prizeflight_postgresql
+    image: docker.io/postgres:alpine
+    restart: unless-stopped
+    command: -c 'max_connections=1024' -c 'shared_buffers=1GB'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: prizeflight_dev
+    ports:
+      - 17432:5432
+    volumes:
+      - prizeflight_pg:/var/lib/postgresql/data
+
+  cube_api:
+    container_name: prizeflight_cube_api
+    restart: unless-stopped
+    depends_on:
+      - postgresql
+    image: docker.io/cubejs/cube:latest
+    ports:
+      - 4008:4000
+      - 15432:15432
+      - 4445:4445
+    environment:
+      CUBEJS_DB_QUERY_TIMEOUT: 60m
+      CUBEJS_CONCURRENCY: 64
+      CUBEJS_PG_SQL_PORT: 15432
+      CUBEJS_SQL_PORT: 4445
+      CUBEJS_DB_MAX_POOL: 64
+      CUBEJS_DB_TYPE: postgres
+      CUBEJS_DB_HOST: postgresql
+      CUBEJS_DB_PORT: 5432
+      CUBEJS_DB_NAME: prizeflight_dev
+      CUBEJS_DB_USER: postgres
+      CUBEJS_DB_PASS: postgres
+      CUBEJS_CUBESTORE_HOST: cubestore_router
+      CUBEJS_API_SECRET: prizeflight_dev_secret
+      CUBEJS_DEV_MODE: "true"
+      CUBEJS_LOG_LEVEL: warn
+    volumes:
+      # Cube.js reads model YAMLs from /cube/conf/model/. The
+      # `power_of_3` macro writes them to ./model/cubes/<name>.yaml at
+      # compile time (relative to the project root); we bind-mount that
+      # directory into the container.
+      - ./model:/cube/conf/model
+
+  cubestore_router:
+    container_name: prizeflight_cubestore_router
+    restart: unless-stopped
+    image: docker.io/cubejs/cubestore:latest
+    environment:
+      CUBESTORE_WORKERS: "cubestore_worker_1:9001"
+      CUBESTORE_META_PORT: 9999
+      CUBESTORE_SERVER_NAME: cubestore_router:9999
+      CUBESTORE_REMOTE_DIR: /cube/data
+      CUBESTORE_LOG_LEVEL: warn
+    volumes:
+      - prizeflight_cubestore:/cube/data
+
+  cubestore_worker_1:
+    container_name: prizeflight_cubestore_worker_1
+    restart: unless-stopped
+    image: docker.io/cubejs/cubestore:latest
+    environment:
+      CUBESTORE_WORKERS: "cubestore_worker_1:9001"
+      CUBESTORE_SERVER_NAME: cubestore_worker_1:9001
+      CUBESTORE_WORKER_PORT: 9001
+      CUBESTORE_META_ADDR: cubestore_router:9999
+      CUBESTORE_REMOTE_DIR: /cube/data
+      CUBESTORE_LOG_LEVEL: warn
+    depends_on:
+      - cubestore_router
+    volumes:
+      - prizeflight_cubestore:/cube/data
+
+volumes:
+  prizeflight_pg:
+  prizeflight_cubestore:

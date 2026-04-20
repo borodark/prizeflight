@@ -1,12 +1,18 @@
 # Prizeflight
 
+> **Branch `postgres-cube-inline`** — same ingest pipeline as `main`,
+> different sink. Writes land in Postgres; reads go through a Cube.js
+> semantic layer whose cube model is generated inline from the Ecto
+> schema via [`power_of_3`](https://github.com/borodark/power_of_three).
+
 High-throughput ingest for real-time flight price events. A Phoenix
 endpoint accepts price updates, validates them against an Ecto
 changeset, and pushes each row onto a lock-free per-scheduler ETS
-shard. A flusher pool drains shards on a timer and writes batches
-directly into ClickHouse, where a `MergeTree` fact table plus an
-`AggregatingMergeTree` materialized view maintain per-route rollups
-with no GenServer serialization on the hot path.
+shard. A flusher pool drains shards on a timer and batch-inserts
+them into an append-only Postgres fact table. Cube.js reads the
+table and exposes pre-aggregated measures; idempotency lives in the
+cube's `count_distinct(event_id)` measure, not in a PRIMARY KEY on
+the write path.
 
 ## Architecture at a glance
 
@@ -20,22 +26,35 @@ HTTP POST ─► PriceUpdateController ─► Prices.validate_event
                             Ingest.Flusher pool  (one GenServer per shard)
                                        │   timer-driven drain of inactive table
                                        ▼
-                            Prizeflight.Clickhouse.insert_many/2
-                                       │   stateless, hits :ch pool
+                            Prices.insert_many/1  (Repo.insert_all)
+                                       │
                                        ▼
-                     price_events (MergeTree)  ─MV─►  route_prices (AggregatingMergeTree)
+                     price_events (Postgres, append-only, no PK)
+                                       │
+                                       ▼              (reads)
+                     Cube.js ◄─── `cube :price_events` ─── PriceUpdate
+                     (measures: count, event_id_distinct,
+                      price_sum / _min / _max; dimensions: route_id,
+                      airports, currency, airline_code, departure_date,
+                      recorded_at)
 ```
 
 Key modules:
 
 | Module | Role |
 |---|---|
-| `Prizeflight.Prices.PriceUpdate` | Ecto schema + validation changeset |
+| `Prizeflight.Prices.PriceUpdate` | Ecto schema + validation changeset + inline `cube :price_events` |
+| `Prizeflight.Prices` | Batch writer (`Repo.insert_all`) and changeset helpers |
+| `Prizeflight.Repo` | Ecto Postgres repo |
 | `Prizeflight.Ingest` | Lock-free `push/1` — `:ets.insert` into a scheduler-sharded table |
 | `Prizeflight.Ingest.BufferSupervisor` | Owns the shard ETS tables and flusher pool |
-| `Prizeflight.Ingest.Flusher` | Drains one shard on a timer, calls the configured writer |
-| `Prizeflight.Clickhouse` | DDL bootstrap + stateless `insert_many` via a `:ch` pool |
+| `Prizeflight.Ingest.Flusher` | Drains one shard on a timer, calls `Prices.insert_many/1` |
 | `PrizeflightWeb.PriceUpdateController` | `POST /api/price_updates` |
+
+The cube model YAML lands at `model/cubes/price_events.yaml` on
+`mix compile` — bind-mounted into the Cube.js container at
+`/cube/conf/model`. Edit the Ecto schema, recompile, Cube sees the
+new model. One source of truth.
 
 ## Design tradeoffs
 
@@ -50,30 +69,29 @@ reviewing the code.
 ## Requirements
 
 - Elixir 1.14+ / OTP 26+
-- ClickHouse server reachable on `localhost:8123` (HTTP) with
-  database `prizeflight` and user `prizeflight`/`prizeflight`.
-  Override via `CH_HOST`, `CH_PORT`, `CH_DB`, `CH_USER`,
-  `CH_PASSWORD`.
+- Postgres reachable on `localhost:5432` (override via `PG_HOST`,
+  `PG_PORT`, `PG_DB`, `PG_USER`, `PG_PASSWORD`). Dev defaults to
+  `localhost:17432` to match the power-of-three compose stack.
+- Cube.js + Cubestore containers for reads (optional for ingest-only
+  development).
 
-Quick ClickHouse (one-shot, local):
+## Stack up (nerdctl / docker / podman compose)
 
 ```sh
-docker run -d --name ch -p 8123:8123 -p 9000:9000 \
-  -e CLICKHOUSE_DB=prizeflight \
-  -e CLICKHOUSE_USER=prizeflight \
-  -e CLICKHOUSE_PASSWORD=prizeflight \
-  clickhouse/clickhouse-server:latest
+nerdctl compose up -d
+# Postgres at :17432, Cube HTTP at :4008, Cube PG wire at :15432
 ```
 
 ## Run
 
 ```sh
-mix setup              # fetch deps
+mix setup              # fetch deps, create DB, migrate
 mix phx.server         # http://localhost:4000
 ```
 
-DDL is applied on startup by `Prizeflight.Clickhouse` — no separate
-migration step.
+`mix setup` creates the Postgres database and runs the migration
+for the `price_events` table. The Cube.js cube model is generated
+at `model/cubes/price_events.yaml` on every compile.
 
 ## Post an event
 
@@ -120,22 +138,26 @@ Tunables: `BENCH_EVENTS` (default 1,000,000), `BENCH_BATCH`
 `System.schedulers_online()`). Set `PHX_SERVER=true` to include the
 HTTP keep-alive scenario.
 
-Headline numbers from the current ClickHouse pipeline (88
-schedulers, 500 000 events, batch 50 000) — see
-**[docs/benchmark_results.md](docs/benchmark_results.md)** for the
-full table including latency distribution and comparison to the
-DuckDB-era baseline:
+The numbers in [docs/benchmark_results.md](docs/benchmark_results.md)
+are from the ClickHouse iteration on `main`. This branch swaps the
+writer for `Repo.insert_all` into Postgres — those numbers need to
+be regenerated against the compose stack. Expect the single-writer
+ceiling to drop vs. ClickHouse (Postgres is OLTP, not columnar);
+the Ingest e2e pipeline shape is unchanged.
 
-| Scenario | Throughput |
-|---|---:|
-| Writer direct (sequential) | 91.5k ev/s |
-| Writer parallel (88×) | 328.7k ev/s |
-| Ingest e2e (push → ETS → flusher → ClickHouse) | 206.6k ev/s |
-| HTTP keep-alive (88 workers) | 3.5k ev/s |
+To regenerate against this branch:
+
+```sh
+nerdctl compose up -d
+PORT=4003 PHX_SERVER=true BENCH_EVENTS=500000 mix run bench/run.exs
+```
 
 See [docs/INGEST_PIPELINE.md](docs/INGEST_PIPELINE.md) for the
-architectural backstory and the 200x `ON CONFLICT` investigation
-that moved the pipeline off DuckDB.
+architectural backstory — the `ON CONFLICT` investigation from the
+DuckDB pivot is still the reason this branch's Postgres table has
+no PRIMARY KEY. Idempotency moved to the cube's
+`count_distinct(event_id)` measure, same pattern as ClickHouse's
+AggregatingMergeTree rollup.
 
 ## Layout
 
