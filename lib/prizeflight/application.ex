@@ -1,5 +1,18 @@
 defmodule Prizeflight.Application do
-  @moduledoc false
+  @moduledoc """
+  OTP application entry. Starts, in order:
+
+    * `PrizeflightWeb.Telemetry` — VM + Phoenix metrics
+    * `Prizeflight.Repo` — Ecto Postgres pool
+    * `DNSCluster` — opt-in clustering
+    * `Phoenix.PubSub` — cross-process messaging bus
+    * `Prizeflight.Ingest.BufferSupervisor` — ETS shards + flusher pool
+      (guarded by `:start_buffer_pool` so tests can opt out)
+    * `PrizeflightWeb.Endpoint` — HTTP listener
+
+  Restart strategy is `:one_for_one` — the pool, the repo, and the
+  endpoint recover independently.
+  """
 
   use Application
 

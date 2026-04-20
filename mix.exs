@@ -11,7 +11,8 @@ defmodule Prizeflight.MixProject do
       aliases: aliases(),
       deps: deps(),
       dialyzer: [
-        plt_add_deps: :app_tree # or :project
+        # or :project
+        plt_add_deps: :app_tree
       ]
     ]
   end

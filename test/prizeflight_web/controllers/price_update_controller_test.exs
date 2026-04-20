@@ -5,9 +5,11 @@ defmodule PrizeflightWeb.PriceUpdateControllerTest do
   # are covered by `bench/run.exs` against a real Postgres + Cube stack;
   # here we just assert the HTTP contract.
 
+  alias Prizeflight.Ingest.BufferSupervisor
+
   setup do
-    stop_existing(Prizeflight.Ingest.BufferSupervisor)
-    {:ok, sup} = Prizeflight.Ingest.BufferSupervisor.start_link()
+    stop_existing(BufferSupervisor)
+    {:ok, sup} = BufferSupervisor.start_link()
 
     on_exit(fn ->
       try do

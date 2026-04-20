@@ -22,16 +22,16 @@ defmodule Prizeflight.Prices.PriceUpdate do
   @timestamps_opts [type: :utc_datetime]
 
   schema "price_events" do
-    field :event_id, Ecto.UUID
-    field :route_id, :string
-    field :origin_airport_code, :string
-    field :destination_airport_code, :string
-    field :departure_date, :utc_datetime
-    field :price, :decimal
-    field :currency, :string
-    field :airline_code, :string
-    field :recorded_at, :utc_datetime
-    field :inserted_at, :utc_datetime
+    field(:event_id, Ecto.UUID)
+    field(:route_id, :string)
+    field(:origin_airport_code, :string)
+    field(:destination_airport_code, :string)
+    field(:departure_date, :utc_datetime)
+    field(:price, :decimal)
+    field(:currency, :string)
+    field(:airline_code, :string)
+    field(:recorded_at, :utc_datetime)
+    field(:inserted_at, :utc_datetime)
   end
 
   cube :price_events,
