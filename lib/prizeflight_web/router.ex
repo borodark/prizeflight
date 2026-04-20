@@ -10,6 +10,12 @@ defmodule PrizeflightWeb.Router do
     plug(:accepts, ["json"])
   end
 
+  scope "/", PrizeflightWeb do
+    pipe_through(:api)
+
+    get("/", RootController, :index)
+  end
+
   scope "/api", PrizeflightWeb do
     pipe_through(:api)
 
