@@ -301,7 +301,7 @@ number of duplicate inserts Cube silently collapses for you.
 
 ## Benchmarks
 
-Current numbers on this branch (200,000 events, Postgres + Cube,
+Current numbers on this branch (200 000 events, Postgres + Cube,
 88 schedulers — see
 [docs/benchmark_results.md](docs/benchmark_results.md) for the
 full table, latency distribution, and comparison to the ClickHouse
@@ -309,10 +309,10 @@ iteration on `main`):
 
 | Scenario | Throughput |
 |---|---:|
-| Writer direct (sequential) | 11.4k ev/s |
-| Writer parallel (88×) | 75.3k ev/s |
-| Ingest e2e (push → ETS → flusher → Postgres) | 48.9k ev/s |
-| HTTP keep-alive (88 workers) | 3.9k ev/s (p50 24 ms) |
+| Writer direct (sequential) | 11.9k ev/s |
+| Writer parallel (88×) | 94.6k ev/s |
+| Ingest e2e (push → ETS → flusher → Postgres) | 46.2k ev/s |
+| HTTP keep-alive (88 workers) | 3.6k ev/s (p50 26 ms) |
 
 ClickHouse wins ~4–8× on the writer tier (columnar bulk vs. OLTP
 prepared statements). HTTP is ~parity — bounded by request

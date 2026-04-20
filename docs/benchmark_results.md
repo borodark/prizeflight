@@ -6,7 +6,7 @@ Postgres + Cube.js branch (`postgres-cube-inline`). See
 backstory (Postgres → DuckDB → ClickHouse pivots and the 200x
 `ON CONFLICT` investigation).
 
-## Branch: postgres-cube-inline (2026-04-20)
+## Branch: postgres-cube-inline (2026-04-20, run 2)
 
 ### Environment
 
@@ -14,37 +14,38 @@ backstory (Postgres → DuckDB → ClickHouse pivots and the 200x
 |---|---|
 | Elixir / OTP | 1.18.3 / 27 |
 | Schedulers | 88 |
-| Postgres | 18.1 (nerdctl container, localhost:17432) |
+| Postgres | 18 (nerdctl container, `prizeflight_postgresql`, port 17432) |
+| Cube.js | latest (nerdctl container, `prizeflight_cube_api`, port 4008) |
 | Repo pool | 50 connections |
 | Batch size | 20 000 per ETS drain; `Prices.insert_many` chunks to 5 000 rows (Postgres 65 535 bound-param cap) |
 
-### Results (200 000 events)
+### Results (200 000 events — `BENCH_EVENTS=200000 BENCH_BATCH=20000`)
 
 | Scenario | Throughput | Wall time | Notes |
 |---|---:|---:|---|
-| Writer direct (sequential `insert_many`) | **11.4k ev/s** | 17.48 s | Single caller, no contention. OLTP baseline — Postgres handles each batch through the prepared-statement path. |
-| Writer parallel (88 concurrent `insert_many`) | **75.3k ev/s** | 2.65 s | Pool saturates; 6.6x sequential. Headroom to raise pool_size. |
-| Ingest e2e (`push` → ETS shard → flusher → Postgres) | **48.9k ev/s** | 4.09 s | The full internal path. The ~35% gap vs. parallel-writer peak is the flusher's timer-driven drain + batch assembly. |
-| HTTP e2e (POST /api/price_updates, 88-way keep-alive) | **3.9k ev/s** | 51.07 s | Bounded by per-request latency (p50 24 ms, p95 28 ms), not the writer. All 200 000 responses were 202 Accepted. |
+| Writer direct (sequential `insert_many`) | **11.9k ev/s** | 16.76 s | Single caller, no contention. OLTP baseline — Postgres handles each chunk through the prepared-statement path. |
+| Writer parallel (88 concurrent `insert_many`) | **94.6k ev/s** | 2.11 s | Pool saturates; 8x sequential. Headroom to raise pool_size further. |
+| Ingest e2e (`push` → ETS shard → flusher → Postgres) | **46.2k ev/s** | 4.33 s | The full internal path. The gap vs. parallel-writer peak is the flusher's timer-driven drain + batch assembly. |
+| HTTP e2e (POST /api/price_updates, 88-way keep-alive) | **3.6k ev/s** | 54.92 s | Bounded by per-request latency (p50 26 ms, p95 31 ms), not the writer. All 200 000 responses were 202 Accepted; 0 errors. |
 
 HTTP latency (200 000 requests, 88-way keep-alive):
 
 | Metric | μs | ms |
 |---|---:|---:|
-| mean | 22 099 | 22.1 |
-| p50 | 23 840 | 23.8 |
-| p95 | 27 963 | 28.0 |
-| p99 | 31 193 | 31.2 |
-| max | 253 280 | 253.3 |
+| mean | 23 874 | 23.9 |
+| p50 | 25 616 | 25.6 |
+| p95 | 31 275 | 31.3 |
+| p99 | 33 698 | 33.7 |
+| max | 286 028 | 286.0 |
 
 ### Branch vs. main comparison
 
 | Stage | ClickHouse (main) | Postgres + Cube (branch) | Ratio |
 |---|---:|---:|---:|
-| Writer direct | 91.5k ev/s | 11.4k ev/s | 0.13x |
-| Writer parallel | 328.7k ev/s | 75.3k ev/s | 0.23x |
-| Ingest e2e | 206.6k ev/s | 48.9k ev/s | 0.24x |
-| HTTP keep-alive | 3.5k ev/s | 3.9k ev/s | 1.10x |
+| Writer direct | 91.5k ev/s | 11.9k ev/s | 0.13x |
+| Writer parallel | 328.7k ev/s | 94.6k ev/s | 0.29x |
+| Ingest e2e | 206.6k ev/s | 46.2k ev/s | 0.22x |
+| HTTP keep-alive | 3.5k ev/s | 3.6k ev/s | 1.03x |
 
 Expected shape: ClickHouse wins big on the writer side (columnar bulk
 inserts vs. Postgres OLTP prepared statements). HTTP is a ~wash
