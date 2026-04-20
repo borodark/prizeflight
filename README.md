@@ -93,6 +93,9 @@ mix phx.server         # http://localhost:4000
 for the `price_events` table. The Cube.js cube model is generated
 at `model/cubes/price_events.yaml` on every compile.
 
+**Full walkthrough** — stack up, ingest, Cube REST + SQL queries:
+**[docs/DEMO.md](docs/DEMO.md)**.
+
 ## Post an event
 
 ```sh
