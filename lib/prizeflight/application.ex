@@ -25,7 +25,14 @@ defmodule Prizeflight.Application do
           {Phoenix.PubSub, name: Prizeflight.PubSub}
         ] ++
         maybe(:start_buffer_pool, Prizeflight.Ingest.BufferSupervisor) ++
-        [PrizeflightWeb.Endpoint]
+        [PrizeflightWeb.Endpoint] ++
+        [
+          %{
+            id: :seed,
+            start: {Task, :start_link, [&Prizeflight.Seed.maybe_seed/0]},
+            restart: :temporary
+          }
+        ]
 
     opts = [strategy: :one_for_one, name: Prizeflight.Supervisor]
     Supervisor.start_link(children, opts)

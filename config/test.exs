@@ -22,3 +22,4 @@ config :phoenix, :plug_init_mode, :runtime
 # checkout, and the Repo is started directly by the test helper instead
 # of the supervision tree to keep it Sandbox-clean.
 config :prizeflight, :start_buffer_pool, false
+config :prizeflight, :seed_on_empty, false

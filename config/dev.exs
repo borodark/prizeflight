@@ -50,6 +50,16 @@ config :prizeflight, PrizeflightWeb.Endpoint,
 # configured to run both http and https servers on
 # different ports.
 
+# Seed 1M synthetic price events on first startup so the Cube.js
+# Playground has data to chart. Skipped when `price_events` already
+# has rows. Override via `SEED_COUNT` or disable with
+# `config :prizeflight, :seed_on_empty, false`.
+config :prizeflight,
+  seed_on_empty: true,
+  seed_count: String.to_integer(System.get_env("SEED_COUNT") || "1000000"),
+  seed_concurrency:
+    String.to_integer(System.get_env("SEED_CONCURRENCY") || "16")
+
 # Enable dev routes for dashboard and mailbox
 config :prizeflight, dev_routes: true
 
